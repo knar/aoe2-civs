@@ -1,4 +1,5 @@
 use crate::data::CivOption;
+use crate::model::Group;
 use leptos::{ev, prelude::*};
 use wasm_bindgen::JsCast;
 
@@ -8,6 +9,8 @@ const INPUT_ID: &str = "combobox-input";
 pub fn Combobox(
     options: Vec<CivOption>,
     #[prop(into)] on_pick: Callback<CivOption>,
+    show_unique_units: RwSignal<bool>,
+    show_unique_techs: RwSignal<bool>,
 ) -> impl IntoView {
     let options = StoredValue::new(options);
     let query = RwSignal::new(String::new());
@@ -16,15 +19,20 @@ pub fn Combobox(
 
     let filtered = Memo::new(move |_| {
         let q = query.get().trim().to_lowercase();
+        let units = show_unique_units.get();
+        let techs = show_unique_techs.get();
         options.with_value(|opts| {
-            if q.is_empty() {
-                opts.clone()
-            } else {
-                opts.iter()
-                    .filter(|o| o.label.to_lowercase().contains(&q))
-                    .copied()
-                    .collect()
-            }
+            opts.iter()
+                .filter(|o| {
+                    !o.unique
+                        || match o.group {
+                            Group::Unit => units,
+                            Group::Tech => techs,
+                        }
+                })
+                .filter(|o| q.is_empty() || o.label.to_lowercase().contains(&q))
+                .copied()
+                .collect::<Vec<CivOption>>()
         })
     });
 
@@ -88,6 +96,30 @@ pub fn Combobox(
 
     view! {
         <div class="combobox">
+            <div class="combobox-filters">
+                <span class="filters-label">"Show:"</span>
+                <button
+                    type="button"
+                    class="filter-toggle"
+                    class:active=move || show_unique_units.get()
+                    aria-pressed=move || if show_unique_units.get() { "true" } else { "false" }
+                    on:click=move |_| show_unique_units.update(|v| *v = !*v)
+                >
+                    "Unique units"
+                </button>
+                <button
+                    type="button"
+                    class="filter-toggle"
+                    class:active=move || show_unique_techs.get()
+                    aria-pressed=move || if show_unique_techs.get() { "true" } else { "false" }
+                    on:click=move |_| show_unique_techs.update(|v| *v = !*v)
+                >
+                    "Unique techs"
+                </button>
+                <span class="filters-count">
+                    {move || format!("{} options", filtered.get().len())}
+                </span>
+            </div>
             <input
                 id=INPUT_ID
                 class="combobox-input"

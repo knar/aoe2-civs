@@ -19,6 +19,46 @@ fn catalog_counts_are_pinned() {
     let techs = OPTIONS.len() - units;
     assert_eq!(units, 209, "unit option count changed");
     assert_eq!(techs, 160, "tech option count changed");
+
+    let unique_units = OPTIONS
+        .iter()
+        .filter(|o| o.unique && o.group == Group::Unit)
+        .count();
+    let unique_techs = OPTIONS
+        .iter()
+        .filter(|o| o.unique && o.group == Group::Tech)
+        .count();
+    assert_eq!(unique_units, 143, "unique unit option count changed");
+    assert_eq!(unique_techs, 109, "unique tech option count changed");
+}
+
+#[test]
+fn unique_flag_means_matches_exactly_one_civ() {
+    for option in OPTIONS {
+        let matching = CIVS
+            .iter()
+            .filter(|civ| option.keys.iter().any(|key| civ.keys.contains(key)))
+            .count();
+        assert_eq!(
+            option.unique,
+            matching == 1,
+            "{}: unique={} but matches {matching} civs",
+            option.label,
+            option.unique
+        );
+    }
+}
+
+#[test]
+fn option_group_matches_its_keys() {
+    for option in OPTIONS {
+        assert!(
+            option.keys.iter().all(|key| key.group == option.group),
+            "{}: group {:?} disagrees with its keys",
+            option.label,
+            option.group
+        );
+    }
 }
 
 #[test]

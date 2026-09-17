@@ -116,12 +116,18 @@ Source: [`SiegeEngineers/aoe2techtree`](https://github.com/SiegeEngineers/aoe2te
 
 A `scripts/generate_data.py` downloads the upstream files once and emits a committed `src/data.rs`:
 
-- `OPTIONS: &[Option { label, label_id, keys: &[FilterKey] }]` — 369 entries, sorted (units then techs, alphabetical); `keys` holds every dataset ID for the merged entity; `label_id` = `name_string_id` kept for future i18n.
+- `OPTIONS: &[CivOption { label, label_id, group, unique, keys: &[FilterKey] }]` — 369 entries, sorted (units then techs, alphabetical); `keys` holds every dataset ID for the merged entity; `group` is `Unit`/`Tech`; `unique` means the option matches exactly one civ (see below); `label_id` = `name_string_id` kept for future i18n.
 - `CIVS: &[Civ { name, keys: &[FilterKey] }]` — Unit+Tech membership only.
 
 No network at `cargo build`/`trunk build`; re-run the script to refresh data.
 
 **i18n later**: language switching does not require runtime-parsing `data.json`. Because every option stores its `name_string_id`, a locale switch is just resolving labels from a different `strings.json` (fetched at runtime or baked per-locale) — all 17 locales already resolve every label.
+
+### Picker filters: hiding civ-specific options
+
+Most of the catalog is noise for multi-civ filtering: **252 of 369 options (68%) match exactly one civ** — every `UniqueUnit` plus every civ-exclusive tech, and nothing else. The generator flags these as `unique` (defined as *matches exactly one civ*, so it stays correct if upstream flags drift).
+
+The picker has two independent toggle chips, **"Unique units"** / **"Unique techs"**, both **off by default** (so the list opens at 117 options); turning one on reveals that category. Toggles live in `FilterBoard` (so they survive the combobox unmounting) and persist to `localStorage` under `aoe2.showUniqueUnits` / `aoe2.showUniqueTechs` via `src/storage.rs`. Hiding is picker-only — already-placed pills keep matching.
 
 ## Milestones (in order)
 
@@ -137,10 +143,12 @@ No network at `cargo build`/`trunk build`; re-run the script to refresh data.
 7. **Model.** `Group`, `FilterKey`, `Pill.keys`; `matching_civs(rows, CIVS)` (AND over rows, OR within; any key per pill) + fixture unit tests (empty filter => all civs; single row OR; multi-row AND; multi-key merge; no match; unit-vs-tech id collision). ✅
 8. **UI.** Combobox emits the picked `Option`; board dedupes by key set and builds the pill from it; results panel shows match count + civ names, reactive via `Memo`. CSS for the results area. ✅
 9. **Pass.** `cargo test` (22 passing), wasm + `trunk build`, `cargo clippy` (clean), mobile check (picker + results), update PLANNING wrap-up. ✅
+10. **Hide civ-specific options.** Bake `unique` (= 1-civ) onto options; two `localStorage`-persisted toggles in the picker (default off); tests pin 252 unique / 143 unit / 109 tech and assert `unique <=> matches one civ`. ✅
 
 ## Open questions (deferred, not blocking)
 
 - Scope of "new row" button: sub-list vs always
 - i18n / locale switcher (data model already keeps `label_id`; needs a `strings.json` fetch or per-locale bake)
-- Persistence (shareable filter via URL or `localStorage`)
+- Persist the *filter itself* (shareable via URL or `localStorage`), not just the picker toggles
 - Whether to expose the excluded universal options behind a toggle
+- Category tabs (All/Units/Techs) in the picker — `group` already supports it

@@ -4,11 +4,20 @@ use crate::data::{CivOption, CIVS, OPTIONS};
 use crate::model::{
     apply_move, extract_to_new_row, matching_civs, next_id, ExtractPill, MovePills, Pill, Row,
 };
+use crate::storage::{load_bool, save_bool};
 use leptos::prelude::*;
+
+const SHOW_UNIQUE_UNITS: &str = "aoe2.showUniqueUnits";
+const SHOW_UNIQUE_TECHS: &str = "aoe2.showUniqueTechs";
 
 #[component]
 pub fn FilterBoard(rows: RwSignal<Vec<Row>>) -> impl IntoView {
     let open_combobox = RwSignal::new(false);
+
+    let show_unique_units = RwSignal::new(load_bool(SHOW_UNIQUE_UNITS, false));
+    let show_unique_techs = RwSignal::new(load_bool(SHOW_UNIQUE_TECHS, false));
+    Effect::new(move |_| save_bool(SHOW_UNIQUE_UNITS, show_unique_units.get()));
+    Effect::new(move |_| save_bool(SHOW_UNIQUE_TECHS, show_unique_techs.get()));
 
     let on_new_filter = move |_| open_combobox.set(true);
 
@@ -86,7 +95,12 @@ pub fn FilterBoard(rows: RwSignal<Vec<Row>>) -> impl IntoView {
             </div>
 
             <Show when=move || open_combobox.get()>
-                <Combobox options=options.clone() on_pick=on_pick />
+                <Combobox
+                    options=options.clone()
+                    on_pick=on_pick
+                    show_unique_units=show_unique_units
+                    show_unique_techs=show_unique_techs
+                />
             </Show>
 
             <button

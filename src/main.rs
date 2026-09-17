@@ -4,6 +4,7 @@ mod data;
 #[cfg(test)]
 mod data_tests;
 mod model;
+mod storage;
 
 fn main() {
     console_error_panic_hook::set_once();

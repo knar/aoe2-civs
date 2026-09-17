@@ -138,6 +138,39 @@ body {
   margin: 16px 0 0;
 }
 
+.combobox-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 0.8rem;
+  color: #6b6459;
+}
+
+.filters-count {
+  margin-left: auto;
+}
+
+.filter-toggle {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid #cbbd9e;
+  background: #f4f1ea;
+  color: #6b6459;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.filter-toggle:hover {
+  background: #efe6d6;
+}
+
+.filter-toggle.active {
+  background: #e7ddc9;
+  border-color: #b3a586;
+  color: #2b2b2b;
+}
+
 .combobox-input {
   width: 100%;
   padding: 10px 14px;

@@ -170,10 +170,10 @@ def main() -> int:
     def coverage(group: str, ids: set[int]) -> int:
         return sum(1 for members in member_sets if any((group, i) in members for i in ids))
 
+    covered = {mk: coverage(mk[0], entry["ids"]) for mk, entry in merged.items()}
+
     # options present in every civ cannot differentiate -> excluded from the picker
-    universal = {
-        mk for mk, entry in merged.items() if coverage(mk[0], entry["ids"]) == total
-    }
+    universal = {mk for mk, count in covered.items() if count == total}
     options = [mk for mk in merged if mk not in universal]
     options.sort(key=lambda mk: (0 if mk[0] == "Unit" else 1, mk[1].casefold()))
 
@@ -191,6 +191,9 @@ def main() -> int:
     add("pub struct CivOption {")
     add("    pub label: &'static str,")
     add("    pub label_id: u32,")
+    add("    pub group: Group,")
+    add("    /// Matches exactly one civ (unique unit or civ-exclusive tech).")
+    add("    pub unique: bool,")
     add("    pub keys: &'static [FilterKey],")
     add("}")
     add("")
@@ -208,9 +211,11 @@ def main() -> int:
         label_id = next(iter(entry["label_ids"]))
         fn = "uk" if group == "Unit" else "tk"
         key_list = ", ".join(f"{fn}({i})" for i in sorted(entry["ids"]))
+        unique = "true" if covered[(group, label)] == 1 else "false"
         add(
             f'    CivOption {{ label: "{rust_str(label)}", '
-            f"label_id: {label_id}, keys: &[{key_list}] }},"
+            f"label_id: {label_id}, group: Group::{group}, unique: {unique}, "
+            f"keys: &[{key_list}] }},"
         )
     add("];")
     add("")
@@ -236,10 +241,12 @@ def main() -> int:
     unit_count = sum(1 for g, _ in options if g == "Unit")
     tech_count = len(options) - unit_count
     multi = sum(1 for entry in merged.values() if len(entry["ids"]) > 1)
+    unique = sum(1 for mk in options if covered[mk] == 1)
     print()
     print(f"wrote {OUT}")
     print(f"  civs:            {total}")
     print(f"  options:         {len(options)} ({unit_count} units, {tech_count} techs)")
+    print(f"  unique (1-civ):  {unique}")
     print(f"  merged (multi-ID options): {multi}")
     print(f"  universal (out): {len(universal)}")
     print(f"  civ references:  {sum(len(m) for _, m in civs)}")
