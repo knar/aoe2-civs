@@ -62,6 +62,7 @@ Planned operations (all "locate by id, delete, then insert"):
 - Remove pill ✕ → remove from its row; row auto-removes if empty.
 - Drag within row → reorder.
 - Drag across rows → move pill (source row auto-removes if empty).
+- Drag out to blank space → extract pill into its own new row (same model rule: source row replaced/removed if empty).
 
 ## DnD integration approach
 
@@ -84,8 +85,8 @@ SortableJS mutates the DOM; Leptos renders from the `rows` signal. The rule that
 1. Scaffold Trunk + Leptos hello-world; `trunk serve` renders. ✅
 2. Custom searchable combobox + "+ New filter" opens it; a pick appends a row with one pill. ✅
 3. Pill removal + AND/OR row rendering. ✅
-4. SortableJS: intra-row reorder + cross-row drag. ✅
-5. Plain CSS pass + mobile/touch test (`trunk serve --address 0.0.0.0`). ⬜
+4. SortableJS: intra-row reorder + cross-row drag + drag-out-to-new-row. ✅
+5. Plain CSS pass + mobile/touch test (`trunk serve --address 0.0.0.0`). ✅
 
 ## Open questions (deferred, not blocking)
 
