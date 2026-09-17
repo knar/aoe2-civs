@@ -1,7 +1,9 @@
 use crate::components::combobox::Combobox;
 use crate::components::filter_row::FilterRow;
-use crate::data::OPTIONS;
-use crate::model::{apply_move, extract_to_new_row, next_id, ExtractPill, MovePills, Pill, Row};
+use crate::data::{CivOption, CIVS, OPTIONS};
+use crate::model::{
+    apply_move, extract_to_new_row, matching_civs, next_id, ExtractPill, MovePills, Pill, Row,
+};
 use leptos::prelude::*;
 
 #[component]
@@ -10,26 +12,29 @@ pub fn FilterBoard(rows: RwSignal<Vec<Row>>) -> impl IntoView {
 
     let on_new_filter = move |_| open_combobox.set(true);
 
-    let on_pick = move |name: String| {
+    let on_pick = move |opt: CivOption| {
         rows.update(|all| {
-            if all
+            let already_picked = all
                 .iter()
-                .any(|row| row.pills.iter().any(|pill| pill.name == name))
-            {
+                .flat_map(|row| row.pills.iter())
+                .any(|pill| pill.keys == opt.keys);
+            if already_picked {
                 return;
             }
             all.push(Row {
                 id: next_id(),
                 pills: vec![Pill {
                     id: next_id(),
-                    name,
+                    keys: opt.keys,
+                    name: opt.label.to_string(),
                 }],
             });
         });
         open_combobox.set(false);
     };
 
-    let options = OPTIONS.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    let options = OPTIONS.to_vec();
+    let matches = Memo::new(move |_| matching_civs(&rows.get(), CIVS));
 
     let on_remove_pill = Callback::new(move |id: u64| {
         rows.update(|all| {
@@ -91,6 +96,26 @@ pub fn FilterBoard(rows: RwSignal<Vec<Row>>) -> impl IntoView {
             >
                 "+ New filter"
             </button>
+
+            <section class="results">
+                <h2 class="results-count">
+                    {move || {
+                        let n = matches.get().len();
+                        if n == 1 {
+                            "1 civ matches".to_string()
+                        } else {
+                            format!("{n} civs match")
+                        }
+                    }}
+                </h2>
+                <ul class="civ-list">
+                    <For
+                        each=move || matches.get()
+                        key=|civ| civ.name
+                        children=|civ| view! { <li class="civ">{civ.name}</li> }
+                    />
+                </ul>
+            </section>
         </div>
     }
 }

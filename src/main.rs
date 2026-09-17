@@ -1,6 +1,8 @@
 mod app;
 mod components;
 mod data;
+#[cfg(test)]
+mod data_tests;
 mod model;
 
 fn main() {

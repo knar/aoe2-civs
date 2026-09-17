@@ -105,6 +105,34 @@ body {
   background: #e6d9c2;
 }
 
+.results {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #d8cfc0;
+}
+
+.results-count {
+  font-size: 1rem;
+  margin: 0 0 10px;
+}
+
+.civ-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.civ {
+  background: #e7ddc9;
+  border: 1px solid #cbbd9e;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 0.85rem;
+}
+
 .combobox {
   position: relative;
   margin: 16px 0 0;

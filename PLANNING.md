@@ -51,15 +51,17 @@ src/
 ## State model
 
 ```rust
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 enum Group { Unit, Tech }
 
-/// Identity of a filterable thing, unique across groups (see "id collision" below).
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+/// Identity of one dataset entry. The unit and tech ID spaces overlap, and a
+/// single entity can span several IDs (different building slots / civ variants),
+/// so an *option* is identified by its label and carries a set of these keys.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 struct FilterKey { group: Group, data_id: u32 }
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-struct Pill { id: u64, key: FilterKey, name: String }  // id = app drag identity
+struct Pill { id: u64, keys: &'static [FilterKey], name: String }  // id = drag identity
 
 #[derive(Clone, PartialEq)]
 struct Row { id: u64, pills: Vec<Pill> }
@@ -69,13 +71,13 @@ let (rows, set_rows) = signal(Vec::<Row>::new());
 ```
 
 Planned operations (all "locate by id, delete, then insert"):
-- `+ New filter` → open combobox; on pick → append a new row with one pill. Dedupe by `FilterKey`, never by label.
+- `+ New filter` → open combobox; on pick → append a new row with one pill. Dedupe by the option's key set, never by label.
 - Remove pill ✕ → remove from its row; row auto-removes if empty.
 - Drag within row → reorder.
 - Drag across rows → move pill (source row auto-removes if empty).
 - Drag out to blank space → extract pill into its own new row (same model rule: source row replaced/removed if empty).
 
-Matching: `matching_civs(&rows, CIVS) -> Vec<&'static str>` — a civ matches iff **every** row has ≥1 pill whose `FilterKey` is in that civ's set (AND over rows, OR within a row). Pure function, unit-tested with a fixture.
+Matching: `matching_civs(&rows, CIVS) -> Vec<&Civ>` — a civ matches iff **every** row has ≥1 pill where the civ has **any** of that pill's keys (AND over rows, OR within a row). Pure function, unit-tested with a fixture.
 
 ## DnD integration approach
 
@@ -104,16 +106,17 @@ Source: [`SiegeEngineers/aoe2techtree`](https://github.com/SiegeEngineers/aoe2te
 ### Findings (verified against upstream)
 
 - **Do the locale files tie IDs to labels?** Yes, but *indirectly*: the civ-array dataset IDs (and the `LanguageNameId` stat fields) are **not** keys in `strings.json`. The link is **`name_string_id`**, which only lives on the per-civ `trees/*.json` nodes. Chain: civ array id → `(group, dsid)` node in trees → `name_string_id` → `strings.json` label.
-- **ID collision is real**: unit and tech dataset-ID spaces overlap (`Unit 4 = "Archer"`, `Tech 4 = "Cotton Armors"`; **33** integers appear in both a Unit and a Tech civ list). Within a group, IDs are unambiguous (verified 0 cases of one `(group, id)` mapping to multiple labels). => every identity is `FilterKey { group, data_id }`; the generator asserts within-group label uniqueness and fails loudly otherwise.
-- **Catalog**: 238 unit + 192 tech = **430** labelable options; 49 of those are universal (present in every civ — Loom, Archer, Skirmisher, Masonry, …) and are excluded as non-differentiating, leaving **~381** pickable options. Buildings (39, also labelable) are excluded from the picker.
+- **ID collision is real**: unit and tech dataset-ID spaces overlap (`Unit 4 = "Archer"`, `Tech 4 = "Cotton Armors"`; **33** integers appear in both a Unit and a Tech civ list). Within a group, IDs are unambiguous (verified 0 cases of one `(group, id)` mapping to multiple labels). => a `FilterKey { group, data_id }` disambiguates unit-vs-tech; the generator asserts within-group label uniqueness and fails loudly otherwise.
+- **One entity, several IDs** (discovered while baking): a unit can appear under multiple dataset IDs — different building slots (e.g. Huskarl in Castle `41` and Barracks `759`) or civ-specific variants (Sicilian Pikeman `1787` vs the generic `358`). Keying options by ID alone both duplicates the label in the picker *and* creates matching gaps (filtering `358` would miss Sicilians). So options are **merged by `(group, label)`** and carry the **set** of dataset IDs; a civ matches if it has *any* of them. 12 such merged options; each has one consistent `name_string_id`.
+- **Source of truth for labels**: the per-civ tree `name` can be stale after a tech rename (e.g. node says `Obsidian Arrows`, locale says `Hul'che Javelineers`), so the **locale string wins**. The few English artifacts are normalized: line-break hyphens (`Counter- weights` → `Counterweights`) and abbreviations (`E.` → `Elite`, `Heavy Demo Ship` → `Heavy Demolition Ship`).
+- **Catalog**: 238 unit + 192 tech = **430** labelable options; after merging, **418** distinct options, of which **49** are universal (present in every civ — Loom, Archer, Skirmisher, Spearman, Villager, Masonry, …) and excluded as non-differentiating, leaving **369** pickable options (209 units + 160 techs). Buildings (39, also labelable) are excluded from the picker.
 - **Civ membership** is compact: 53 civs, ~6,410 `(civ, FilterKey)` references (~121/civ).
-- **Label cleanup**: strip `<br>` / `\n` (e.g. `"Elite<br>\nSteppe Lancer"` → `"Elite Steppe Lancer"`).
 
 ### Ingestion decision: bake at build time
 
 A `scripts/generate_data.py` downloads the upstream files once and emits a committed `src/data.rs`:
 
-- `OPTIONS: &[Option { group, data_id, label, label_id }]` — ~381 entries, sorted; `label_id` = `name_string_id` kept for future i18n.
+- `OPTIONS: &[Option { label, label_id, keys: &[FilterKey] }]` — 369 entries, sorted (units then techs, alphabetical); `keys` holds every dataset ID for the merged entity; `label_id` = `name_string_id` kept for future i18n.
 - `CIVS: &[Civ { name, keys: &[FilterKey] }]` — Unit+Tech membership only.
 
 No network at `cargo build`/`trunk build`; re-run the script to refresh data.
@@ -130,10 +133,10 @@ No network at `cargo build`/`trunk build`; re-run the script to refresh data.
 
 ### Part 2 — real data + matching
 
-6. **Generator + baked data.** `scripts/generate_data.py` emits `src/data.rs` (`OPTIONS`, `CIVS`); strip `<br>`/`\n`; exclude buildings + universal options; assert within-group label uniqueness. A native test pins catalog counts (~381 options / 53 civs) and rejects any unlabeled entry.
-7. **Model.** `Group`, `FilterKey`, `Pill.key`; `matching_civs(rows, CIVS)` (AND over rows, OR within) + fixture unit tests (empty filter => all civs; single row OR; multi-row AND; no match).
-8. **UI.** Combobox emits `(FilterKey, label)`; board dedupes by `FilterKey`; results panel shows match count + civ names, reactive via `Memo`. CSS for the results area.
-9. **Pass.** `cargo test`, wasm build, mobile check (picker + results), update PLANNING wrap-up.
+6. **Generator + baked data.** `scripts/generate_data.py` emits `src/data.rs` (`OPTIONS`, `CIVS`); strip markup; merge options by label; exclude buildings + universal options; assert within-group label uniqueness and per-option `name_string_id` consistency. A native test pins catalog counts (369 options / 53 civs) and rejects any unlabeled entry. ✅
+7. **Model.** `Group`, `FilterKey`, `Pill.keys`; `matching_civs(rows, CIVS)` (AND over rows, OR within; any key per pill) + fixture unit tests (empty filter => all civs; single row OR; multi-row AND; multi-key merge; no match; unit-vs-tech id collision). ✅
+8. **UI.** Combobox emits the picked `Option`; board dedupes by key set and builds the pill from it; results panel shows match count + civ names, reactive via `Memo`. CSS for the results area. ✅
+9. **Pass.** `cargo test` (22 passing), wasm + `trunk build`, `cargo clippy` (clean), mobile check (picker + results), update PLANNING wrap-up. ✅
 
 ## Open questions (deferred, not blocking)
 

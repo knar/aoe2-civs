@@ -37,7 +37,7 @@ pub fn apply(
                     on_extract.run(extract);
                     request_animation_frame(move || {
                         if moved.is_connected() {
-                            let _ = moved.remove();
+                            moved.remove();
                         }
                     });
                 });
@@ -56,7 +56,7 @@ pub fn apply(
                 if cross_row {
                     request_animation_frame(move || {
                         if moved.is_connected() {
-                            let _ = moved.remove();
+                            moved.remove();
                         }
                     });
                 }

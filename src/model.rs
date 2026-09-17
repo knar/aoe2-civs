@@ -6,10 +6,33 @@ pub fn next_id() -> u64 {
     NEXT_ID.fetch_add(1, Ordering::Relaxed)
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum Group {
+    Unit,
+    Tech,
+}
+
+/// Identity of one dataset entry. The unit and tech ID spaces overlap, and a
+/// single entity can span several IDs (different building slots / civ variants),
+/// so an option is identified by its label and carries a set of these keys.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct FilterKey {
+    pub group: Group,
+    pub data_id: u32,
+}
+
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct Pill {
     pub id: u64,
+    pub keys: &'static [FilterKey],
     pub name: String,
+}
+
+/// A civ and the units/techs it has, as filter keys.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Civ {
+    pub name: &'static str,
+    pub keys: &'static [FilterKey],
 }
 
 #[derive(Clone, PartialEq)]
@@ -75,13 +98,35 @@ pub fn extract_to_new_row(rows: &mut Vec<Row>, e: ExtractPill) -> Option<u64> {
     Some(new_id)
 }
 
+/// Civs matching the filter: AND over rows, OR within each row. An empty filter
+/// matches every civ.
+pub fn matching_civs<'a>(rows: &[Row], civs: &'a [Civ]) -> Vec<&'a Civ> {
+    civs.iter()
+        .filter(|civ| {
+            rows.iter().all(|row| {
+                row.pills
+                    .iter()
+                    .any(|pill| pill.keys.iter().any(|key| civ.keys.contains(key)))
+            })
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn keys(items: Vec<FilterKey>) -> &'static [FilterKey] {
+        Box::leak(items.into_boxed_slice())
+    }
+
     fn pill(id: u64, name: &str) -> Pill {
         Pill {
             id,
+            keys: keys(vec![FilterKey {
+                group: Group::Unit,
+                data_id: id as u32,
+            }]),
             name: name.to_string(),
         }
     }
@@ -251,5 +296,135 @@ mod tests {
             vec![10]
         );
         assert_eq!(rows[1].id, 2);
+    }
+
+    const ARCHER: FilterKey = FilterKey {
+        group: Group::Unit,
+        data_id: 4,
+    };
+    const SKIRM: FilterKey = FilterKey {
+        group: Group::Unit,
+        data_id: 7,
+    };
+    const LOOM: FilterKey = FilterKey {
+        group: Group::Tech,
+        data_id: 22,
+    };
+
+    fn civ_fixture() -> &'static [Civ] {
+        static CIVS: &[Civ] = &[
+            Civ {
+                name: "A",
+                keys: &[ARCHER, LOOM],
+            },
+            Civ {
+                name: "B",
+                keys: &[SKIRM],
+            },
+            Civ {
+                name: "C",
+                keys: &[ARCHER, SKIRM],
+            },
+        ];
+        CIVS
+    }
+
+    fn keyed_row(id: u64, item_keys: &[FilterKey]) -> Row {
+        Row {
+            id,
+            pills: item_keys
+                .iter()
+                .map(|&key| Pill {
+                    id: next_id(),
+                    keys: keys(vec![key]),
+                    name: String::new(),
+                })
+                .collect(),
+        }
+    }
+
+    fn names<'a>(civs: &[&'a Civ]) -> Vec<&'a str> {
+        civs.iter().map(|c| c.name).collect()
+    }
+
+    #[test]
+    fn empty_filter_matches_all_civs() {
+        let matched = matching_civs(&[], civ_fixture());
+        assert_eq!(names(&matched), vec!["A", "B", "C"]);
+    }
+
+    #[test]
+    fn single_pill_matches_only_civs_that_have_it() {
+        let rows = [keyed_row(1, &[LOOM])];
+        let matched = matching_civs(&rows, civ_fixture());
+        assert_eq!(names(&matched), vec!["A"]);
+    }
+
+    #[test]
+    fn row_is_or_across_pills() {
+        let rows = [keyed_row(1, &[ARCHER, SKIRM])];
+        let matched = matching_civs(&rows, civ_fixture());
+        assert_eq!(names(&matched), vec!["A", "B", "C"]);
+    }
+
+    #[test]
+    fn rows_are_and() {
+        let rows = [keyed_row(1, &[ARCHER]), keyed_row(2, &[SKIRM])];
+        let matched = matching_civs(&rows, civ_fixture());
+        assert_eq!(names(&matched), vec!["C"]);
+    }
+
+    #[test]
+    fn no_civ_matches_contradictory_rows() {
+        let rows = [keyed_row(1, &[LOOM]), keyed_row(2, &[SKIRM])];
+        let matched = matching_civs(&rows, civ_fixture());
+        assert!(matched.is_empty());
+    }
+
+    #[test]
+    fn unit_and_tech_ids_do_not_collide() {
+        let tech = FilterKey {
+            group: Group::Tech,
+            data_id: 4,
+        };
+        assert_ne!(ARCHER, tech);
+        let rows = [keyed_row(1, &[tech])];
+        assert!(matching_civs(&rows, civ_fixture()).is_empty());
+    }
+
+    #[test]
+    fn pill_matches_civ_with_any_of_its_keys() {
+        const GENERIC: FilterKey = FilterKey {
+            group: Group::Unit,
+            data_id: 358,
+        };
+        const VARIANT: FilterKey = FilterKey {
+            group: Group::Unit,
+            data_id: 1787,
+        };
+        static CIVS: &[Civ] = &[
+            Civ {
+                name: "Generic",
+                keys: &[GENERIC],
+            },
+            Civ {
+                name: "Variant",
+                keys: &[VARIANT],
+            },
+            Civ {
+                name: "Neither",
+                keys: &[],
+            },
+        ];
+        let row = Row {
+            id: 1,
+            pills: vec![Pill {
+                id: next_id(),
+                keys: keys(vec![GENERIC, VARIANT]),
+                name: "Pikeman".to_string(),
+            }],
+        };
+        let matched = matching_civs(&[row], CIVS);
+        assert_eq!(names(&matched), vec!["Generic", "Variant"]);
     }
 }

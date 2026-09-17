@@ -1,3 +1,4 @@
+use crate::data::CivOption;
 use leptos::{ev, prelude::*};
 use wasm_bindgen::JsCast;
 
@@ -5,8 +6,8 @@ const INPUT_ID: &str = "combobox-input";
 
 #[component]
 pub fn Combobox(
-    options: Vec<String>,
-    #[prop(into)] on_pick: Callback<String>,
+    options: Vec<CivOption>,
+    #[prop(into)] on_pick: Callback<CivOption>,
 ) -> impl IntoView {
     let options = StoredValue::new(options);
     let query = RwSignal::new(String::new());
@@ -20,8 +21,8 @@ pub fn Combobox(
                 opts.clone()
             } else {
                 opts.iter()
-                    .filter(|o| o.to_lowercase().contains(&q))
-                    .cloned()
+                    .filter(|o| o.label.to_lowercase().contains(&q))
+                    .copied()
                     .collect()
             }
         })
@@ -44,7 +45,7 @@ pub fn Combobox(
             {
                 let options = web_sys::ScrollIntoViewOptions::new();
                 options.set_block(web_sys::ScrollLogicalPosition::Nearest);
-                let _ = el.scroll_into_view_with_scroll_into_view_options(&options);
+                el.scroll_into_view_with_scroll_into_view_options(&options);
             }
         }
     });
@@ -76,8 +77,8 @@ pub fn Combobox(
             }
             "Enter" => {
                 ev.prevent_default();
-                if let Some(name) = list.get(highlight.get()) {
-                    on_pick.run(name.clone());
+                if let Some(opt) = list.get(highlight.get()) {
+                    on_pick.run(*opt);
                 }
             }
             "Escape" => open.set(false),
@@ -102,18 +103,17 @@ pub fn Combobox(
                         each=move || {
                             filtered.get().into_iter().enumerate().collect::<Vec<_>>()
                         }
-                        key=|(_, name)| name.clone()
-                        children=move |(i, name)| {
-                            let pick_name = name.clone();
+                        key=|(_, opt)| *opt
+                        children=move |(i, opt)| {
                             view! {
                                 <li
                                     class="combobox-item"
                                     id=format!("combobox-item-{}", i)
                                     data-highlighted=move || i == highlight.get()
                                     on:mouseenter=move |_| highlight.set(i)
-                                    on:click=move |_| on_pick.run(pick_name.clone())
+                                    on:click=move |_| on_pick.run(opt)
                                 >
-                                    {name}
+                                    {opt.label}
                                 </li>
                             }
                         }
