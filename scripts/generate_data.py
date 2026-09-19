@@ -69,6 +69,15 @@ def group_for(node_type: str):
     return None
 
 
+def icon_dir(node_type: str):
+    """img/ subfolder holding a node's picture file (aoe2techtree.net/img/...)."""
+    if node_type in UNIT_NODE_TYPES:
+        return "Unit"
+    if node_type in TECH_NODE_TYPES:
+        return "Tech"
+    return None
+
+
 def walk(node, visit):
     if isinstance(node, dict):
         visit(node)
@@ -92,6 +101,10 @@ def main() -> int:
 
     # (group, data_id) -> set of (label_id, label)
     seen: dict[tuple[str, int], set[tuple[int, str]]] = defaultdict(set)
+    # (group, data_id) -> (img subfolder, picture_index)
+    pics: dict[tuple[str, int], tuple[str, int]] = {}
+    # data_ids trained from a dock (building_id 45) -> the unit is navy
+    naval_ids: set[tuple[str, int]] = set()
 
     for i, name in enumerate(tree_names, 1):
         tree = fetch_json(f"{RAW}/trees/{name}")
@@ -109,6 +122,13 @@ def main() -> int:
             if group is None:
                 return
             data_id = int(match.group(2))
+            if group == "Unit" and str(n.get("building_id")) == "45":
+                naval_ids.add((group, data_id))
+            icon_dir_name = icon_dir(node_type)
+            if icon_dir_name is not None and (group, data_id) not in pics:
+                pic = re.fullmatch(r"(\d+)", str(n.get("picture_index") or ""))
+                if pic:
+                    pics[(group, data_id)] = (icon_dir_name, int(pic.group(1)))
             sid = n.get("name_string_id")
             label = clean_label(strings.get(str(sid))) if sid is not None else None
             if not label:
@@ -167,10 +187,34 @@ def main() -> int:
 
     member_sets = [set(members) for _, members in civs]
 
+    unit_stats = data["data"]["Unit"]
+
+    def unit_food_gold(ids: set[int]) -> bool:
+        """True when none of the unit's variants costs wood (food+gold / gold-only).
+
+        Feeds the DM-michi overview: wood-free units are the spammable ones.
+        """
+        for data_id in sorted(ids):
+            stats = unit_stats.get(str(data_id))
+            if not stats:
+                return False
+            cost = stats.get("Cost") or {}
+            if cost.get("Wood", 0) > 0:
+                return False
+        return True
+
     def coverage(group: str, ids: set[int]) -> int:
         return sum(1 for members in member_sets if any((group, i) in members for i in ids))
 
     covered = {mk: coverage(mk[0], entry["ids"]) for mk, entry in merged.items()}
+
+    def merged_icon(group: str, ids: set[int]) -> str:
+        """Icon of the option's lowest dataset ID (civ variants all share pics)."""
+        for data_id in sorted(ids):
+            pic = pics.get((group, data_id))
+            if pic:
+                return f"{pic[0]}/{pic[1]}"
+        return "missing"
 
     # options present in every civ cannot differentiate -> excluded from the picker
     universal = {mk for mk, count in covered.items() if count == total}
@@ -194,6 +238,12 @@ def main() -> int:
     add("    pub group: Group,")
     add("    /// Matches exactly one civ (unique unit or civ-exclusive tech).")
     add("    pub unique: bool,")
+    add("    /// Unit costs no wood (food+gold / gold-only); false for techs.")
+    add("    pub food_gold: bool,")
+    add("    /// Unit is trained from a dock (navy); false for techs.")
+    add("    pub naval: bool,")
+    add("    /// Icon path under https://aoe2techtree.net/img/ (e.g. \"Unit/42\").")
+    add("    pub icon: &'static str,")
     add("    pub keys: &'static [FilterKey],")
     add("}")
     add("")
@@ -212,9 +262,14 @@ def main() -> int:
         fn = "uk" if group == "Unit" else "tk"
         key_list = ", ".join(f"{fn}({i})" for i in sorted(entry["ids"]))
         unique = "true" if covered[(group, label)] == 1 else "false"
+        food_gold = unit_food_gold(entry["ids"]) if group == "Unit" else False
+        naval = group == "Unit" and any((group, i) in naval_ids for i in entry["ids"])
+        icon = merged_icon(group, entry["ids"])
         add(
             f'    CivOption {{ label: "{rust_str(label)}", '
             f"label_id: {label_id}, group: Group::{group}, unique: {unique}, "
+            f"food_gold: {str(food_gold).lower()}, naval: {str(naval).lower()}, "
+            f"icon: \"{icon}\", "
             f"keys: &[{key_list}] }},"
         )
     add("];")

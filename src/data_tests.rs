@@ -62,6 +62,29 @@ fn option_group_matches_its_keys() {
 }
 
 #[test]
+fn food_gold_classifies_wood_free_units() {
+    fn option(label: &str) -> &crate::data::CivOption {
+        OPTIONS
+            .iter()
+            .find(|o| o.label == label)
+            .unwrap_or_else(|| panic!("no option {label}"))
+    }
+    assert!(option("Siege Elephant").food_gold);
+    assert!(option("Armored Elephant").food_gold);
+    assert!(option("Huskarl").food_gold);
+    assert!(option("War Elephant").food_gold);
+    assert!(option("Steppe Lancer").food_gold);
+    assert!(!option("Siege Ram").food_gold);
+    assert!(!option("Mangudai").food_gold);
+    assert!(!option("Longbowman").food_gold);
+    assert!(!option("Chu Ko Nu").food_gold);
+    assert!(!option("Fire Lancer").food_gold);
+    assert!(!option("Camel Archer").food_gold);
+    assert!(option("Champion").food_gold);
+    assert!(option("Hand Cannoneer").food_gold);
+}
+
+#[test]
 fn every_option_is_well_formed() {
     for option in OPTIONS {
         assert!(!option.label.is_empty(), "empty label");
@@ -72,6 +95,14 @@ fn every_option_is_well_formed() {
             option.keys.iter().all(|key| key.group == group),
             "{} mixes unit and tech keys",
             option.label
+        );
+        assert!(
+            option.icon == "missing"
+                || (option.icon.starts_with("Unit/") || option.icon.starts_with("Tech/"))
+                    && option.icon[5..].parse::<u32>().is_ok(),
+            "{} has an ill-formed icon {:?}",
+            option.label,
+            option.icon
         );
     }
 }

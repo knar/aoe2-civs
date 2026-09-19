@@ -1,8 +1,9 @@
+use crate::components::civ_panel::CivPanel;
 use crate::components::combobox::Combobox;
 use crate::components::filter_row::FilterRow;
 use crate::data::{CivOption, CIVS, OPTIONS};
 use crate::model::{
-    apply_move, extract_to_new_row, matching_civs, next_id, ExtractPill, MovePills, Pill, Row,
+    apply_move, extract_to_new_row, matching_civs, next_id, Civ, ExtractPill, MovePills, Pill, Row,
 };
 use crate::storage::{load_bool, save_bool};
 use leptos::prelude::*;
@@ -44,6 +45,18 @@ pub fn FilterBoard(rows: RwSignal<Vec<Row>>) -> impl IntoView {
 
     let options = OPTIONS.to_vec();
     let matches = Memo::new(move |_| matching_civs(&rows.get(), CIVS));
+
+    let selected = RwSignal::new(None::<Civ>);
+
+    let is_selected = move |civ_name: &str| selected.get().is_some_and(|c| c.name == civ_name);
+
+    let toggle = move |civ: Civ| {
+        if is_selected(civ.name) {
+            selected.set(None);
+        } else {
+            selected.set(Some(civ));
+        }
+    };
 
     let on_remove_pill = Callback::new(move |id: u64| {
         rows.update(|all| {
@@ -126,10 +139,31 @@ pub fn FilterBoard(rows: RwSignal<Vec<Row>>) -> impl IntoView {
                     <For
                         each=move || matches.get()
                         key=|civ| civ.name
-                        children=|civ| view! { <li class="civ">{civ.name}</li> }
+                        children=move |civ| {
+                            let active = is_selected(civ.name);
+                            view! {
+                                <li>
+                                    <button
+                                        class=move || {
+                                            if is_selected(civ.name) {
+                                                "civ civ-active"
+                                            } else {
+                                                "civ"
+                                            }
+                                        }
+                                        aria-pressed=active
+                                        on:click=move |_| toggle(*civ)
+                                    >
+                                        {civ.name}
+                                    </button>
+                                </li>
+                            }
+                        }
                     />
                 </ul>
             </section>
+
+            <CivPanel selected=selected />
         </div>
     }
 }

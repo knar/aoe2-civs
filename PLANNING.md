@@ -38,11 +38,13 @@ src/
   app.rs            # rows signal + board render + "+ add filter" flow
   data.rs           # GENERATED: OPTIONS catalog + CIVS membership (do not hand-edit)
   model.rs          # Pill/Row/FilterKey + apply_move/extract + matching_civs
+  overview.rs       # DM-michi profile: 12 output slots + statuses + curated notes + tests
   components/
     mod.rs
+    civ_panel.rs    # civ overview drawer (right side, mobile overlay) + tech-tree link
     combobox.rs     # custom searchable combobox -> on_pick callback
     dnd.rs          # SortableJS per-row: apply to a row element, emit MovePills from event indices
-    filter_board.rs # rows + annotation + results + "+ New filter" button
+    filter_board.rs # rows + annotation + results (clickable chips) + "+ New filter" button
     filter_row.rs   # one row (OR-group of pills, AND container)
     pill.rs         # draggable pill chip + removal ✕
   styles.css
@@ -144,6 +146,29 @@ The picker has two independent toggle chips, **"Unique units"** / **"Unique tech
 8. **UI.** Combobox emits the picked `Option`; board dedupes by key set and builds the pill from it; results panel shows match count + civ names, reactive via `Memo`. CSS for the results area. ✅
 9. **Pass.** `cargo test` (22 passing), wasm + `trunk build`, `cargo clippy` (clean), mobile check (picker + results), update PLANNING wrap-up. ✅
 10. **Hide civ-specific options.** Bake `unique` (= 1-civ) onto options; two `localStorage`-persisted toggles in the picker (default off); tests pin 252 unique / 143 unit / 109 tech and assert `unique <=> matches one civ`. ✅
+
+### Part 3 — DM michi civ overview
+
+11. **Civ overview panel.** Clicking a civ chip in the results opens a right-side drawer (`components/civ_panel.rs`) with a concise, always-on DM-michi profile:
+    - **12 unit/tech slots** (7 core army, 5 siege & defense) each with a deterministic status — `✓` full, `⊘ missing: <upgrades>` (only non-universal, differentiating techs are listed), `▽ <fallback> only` (e.g. Cavalier when no Paladin), `✗` absent. Computed in `src/overview.rs::summary_for(&Civ)` straight from the civ's `CIVS` keys — no extra data.
+    - **"Bonuses that matter"** — one to two hand-curated notes per civ, filtered to effects that stay active *after everything is already researched* (post-imp DM): permanent power-unit stats, production-cost/training perks for those units, farming/trade rates, building stats, wood gathering. One-time/pre-age research perks (free/faster techs, earlier ages, eco) are deliberately omitted. Team bonuses flagged. Source: field-guide (`amateurakhbar/aoe2-field-guide` `data/aoe2_data.json`) DE game strings, spot-checked (Burgundians/Turks gunpowder, Mongols Drill).
+    - Footer link → `https://aoe2techtree.net/#<CivName>`.
+    - Persisted UI decisions: no concise/full toggle (always concise); single "DM michi" profile (slots/notes table is the extension point for more modes).
+12. **Tests** (`overview.rs`): every slot/FU/fallback key must exist in the `OPTIONS` catalog; notes exist for all 53 civs; pinned civ expectations match known data facts (Turks BBT ✓ no onager but heavy scorpion; Koreans BBT ✓ no onager/heavy scorpion + champion lacking Blast Furnace; Britons arbalest missing Thumb Ring; Franks paladin missing Bloodlines; Goths champion missing Plate Mail + Arson, Paladin → Cavalier only; Celts Siege Onager ✓ no BBT; Chinese BBT ✓ + heavy scorpion, no onager). ✅ (36 tests total, clippy clean)
+13. **Spam & tools redesign.** Replaced the fixed 12-slot grid with a rule-driven, per-civ "good options" sheet — no more ✗/noise rows:
+    - **Spam (food & gold)**: every *unique* unit the civ holds whose training cost has no wood (baked at generation time as `food_gold`, from upstream `data.json` `data.Unit[...].Cost`), shown as `Elite X` when the elite line is held, plus always-shown rule slots — Heavy Camel Rider, Paladin, Battle Elephant, Hand Cannoneer, Elite Elephant Archer, Eagle Warrior, Steppe Lancer — each only when present. A coverage fallback guarantees ≥1 spam row (Cavalier → Champion → Arbalest; e.g. Chinese). Champion/Arbalest otherwise appear **only** for hand-curated `SPECIAL_INF`/`SPECIAL_RANGE` civs, kept in sync with NOTES by a test.
+    - **Siege tools**: Siege Ram / Siege Elephant / Siege Onager / Heavy Scorpion (with their cheaper fallbacks, e.g. ▽ Capped Ram, ▽ Armored Elephant) + Bombard Cannon + Bombard Tower, only when present; Siege Engineers researched shows as a footnote when the civ actually has a siege line.
+    - Absence is quiet — absent lines are dropped, whole empty sections render a muted italic line. `Status::Absent` is never emitted into the panel. ✅ (43 tests, clippy clean; `food_gold` pinned in `data_tests.rs`)
+14. **Icon rows + cost-based split (no wood vs wood).** Rows went icon-first and the two sections are now strictly cost-split:
+    - Icons: `generate_data.py` now bakes `icon` (`Unit/<picture_index>` / `Tech/<...>`, e.g. `Unit/42` Mangudai) from each tree node's `picture_index`; served from `https://aoe2techtree.net/img/<icon>.png` (48×48, `image-rendering: pixelated`). The panel shows `<img>` rows only; tooltips carry the name / `missing: …` list / `only Capped Ram available`.
+    - **Spam (no wood)** = food+gold rows: unique food+gold units (elite-pivoted), rule slots, Champion special, coverage (now Cavalier → Champion only, since Arbalest moved out), **plus Siege Elephant** (food+gold ⇒ spam, fallback Armored Elephant). **Wood units (usually siege)** = Siege Ram / Siege Onager / Heavy Scorpion / Bombard Cannon / Bombard Tower with **fallback shown by swapping to the base unit's icon** (Capped Ram icon, Onager icon, Scorpion icon — dashed border + tooltip instead of "▽ X only" text), the Arbalest `SPECIAL_RANGE` slot (upstream now labels it "Arbalester"), and **every wood-costing unique unit** with elite pivot (Mangudai, Chu Ko Nu, Longboat, Thirisadai, Turtle Ship…). Appearance mirrors the spam side: absent lines dropped, empty sections get a muted line, partial upgrades dim the icon (`opacity: .55`).
+    - Verified: all 102 distinct row icons HEAD-checked 200 from aoe2techtree.net; every row carries a real (non-`missing`) icon in a test. ✅ (44 tests, clippy clean, `trunk build` ok; icon format pinned in `data_tests.rs`)
+    - **Naval units dropped entirely** (land-only profile): the generator now bakes `naval` from each tree node's `building_id == 45` (dock) — Longboat, Turtle Ship, Caravel, Thirisadai, Dromon etc. never appear in any section; a test asserts no summary row resolves from a `naval` option.
+    - **Fallback = base icon, pinned**: base-only civs render the base unit's icon (Capped Ram `Unit/63`, Onager `Unit/101`, Scorpion `Unit/80`) — the lower-tier state is visible in the icon itself, not just the tooltip. ✅ (46 tests, clippy clean)
+    - **Refinements**: tooltip for base-only rows is just the base unit's name (`Onager`, not `Siege Onager — only Onager available`); Scorpion-only civs **omit** the row entirely (no fallback on Heavy Scorpion); added the Three-Kingdoms **Heavy Rocket Cart** line (`uk(1907)` → Rocket Cart fallback `uk(1904)`, Chinese/Jurchens/Khitans/Koreans, `Unit/460` icon, verified live). ✅ (46 tests, clippy clean)
+    - **Replaced-outclassed lines**: Hindustanis skip Heavy Camel Rider (Imperial Camel Rider `uk(207)` supersedes it) and Bohemians skip Bombard Cannon (Houfnice `uk(1709)` supersedes it) — a `REPLACES` table in `overview.rs` suppresses the generic slot when the civ holds the replacing unit.
+    - **Melee backbone guarantee**: every civ always lists a food+gold melee line — generic **Cavalier** when it has the stable line and no premium cavalry row is already shown (Sicilians, Goths, Vikings, Koreans…), else **Champion** when the civ completely lacks a stable (Aztecs). Champion/Arbalest specials and coverage stay untouched.
+    - **Armenian note**: "Fereters researched: infantry +30 HP" + team infantry +2 LOS (previously blank → muted "nothing notable" line). ✅ (51 tests, clippy clean)
 
 ## Open questions (deferred, not blocking)
 

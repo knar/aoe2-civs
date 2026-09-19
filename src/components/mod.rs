@@ -1,3 +1,4 @@
+pub mod civ_panel;
 pub mod combobox;
 pub mod dnd;
 pub mod filter_board;

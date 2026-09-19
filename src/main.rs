@@ -4,6 +4,7 @@ mod data;
 #[cfg(test)]
 mod data_tests;
 mod model;
+mod overview;
 mod storage;
 
 fn main() {
