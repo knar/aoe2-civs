@@ -10,6 +10,14 @@ use leptos::prelude::*;
 
 const SHOW_UNIQUE_UNITS: &str = "aoe2.showUniqueUnits";
 const SHOW_UNIQUE_TECHS: &str = "aoe2.showUniqueTechs";
+const THEME_KEY: &str = "aoe2.darkMode";
+
+fn system_prefers_dark() -> bool {
+    web_sys::window()
+        .and_then(|win| win.match_media("(prefers-color-scheme: dark)").ok().flatten())
+        .map(|mq| mq.matches())
+        .unwrap_or(false)
+}
 
 #[component]
 pub fn FilterBoard(rows: RwSignal<Vec<Row>>) -> impl IntoView {
@@ -19,6 +27,18 @@ pub fn FilterBoard(rows: RwSignal<Vec<Row>>) -> impl IntoView {
     let show_unique_techs = RwSignal::new(load_bool(SHOW_UNIQUE_TECHS, false));
     Effect::new(move |_| save_bool(SHOW_UNIQUE_UNITS, show_unique_units.get()));
     Effect::new(move |_| save_bool(SHOW_UNIQUE_TECHS, show_unique_techs.get()));
+
+    let dark = RwSignal::new(load_bool(THEME_KEY, system_prefers_dark()));
+    Effect::new(move |_| {
+        if let Some(html) = document().document_element() {
+            if dark.get() {
+                let _ = html.set_attribute("data-theme", "dark");
+            } else {
+                let _ = html.remove_attribute("data-theme");
+            }
+        }
+    });
+    Effect::new(move |_| save_bool(THEME_KEY, dark.get()));
 
     let on_new_filter = move |_| open_combobox.set(true);
 
@@ -85,8 +105,34 @@ pub fn FilterBoard(rows: RwSignal<Vec<Row>>) -> impl IntoView {
     view! {
         <div class="filter-board">
             <header class="board-annotation">
-                <h1>"AoE2 civ filter"</h1>
-                <p>"Every row is required (AND). Pick a unit or tech per row."</p>
+                <div class="board-annotation-text">
+                    <h1>"AoE2 civ filter"</h1>
+                    <p>"Every row is required (AND). Pick a unit or tech per row."</p>
+                </div>
+                <button
+                    class="theme-toggle"
+                    type="button"
+                    aria-pressed=move || dark.get()
+                    aria-label="Toggle dark mode"
+                    title=move || if dark.get() { "Switch to light mode" } else { "Switch to dark mode" }
+                    on:click=move |_| dark.update(|v| *v = !*v)
+                >
+                    <Show
+                        when=move || dark.get()
+                        fallback=move || {
+                            view! {
+                                <svg viewBox="0 0 24 24">
+                                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                                </svg>
+                            }
+                        }
+                    >
+                        <svg viewBox="0 0 24 24">
+                            <circle cx="12" cy="12" r="5"></circle>
+                            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path>
+                        </svg>
+                    </Show>
+                </button>
             </header>
 
             <div class="rows">
@@ -111,6 +157,7 @@ pub fn FilterBoard(rows: RwSignal<Vec<Row>>) -> impl IntoView {
                 <Combobox
                     options=options.clone()
                     on_pick=on_pick
+                    on_cancel=Callback::new(move |()| open_combobox.set(false))
                     show_unique_units=show_unique_units
                     show_unique_techs=show_unique_techs
                 />

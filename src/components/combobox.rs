@@ -9,6 +9,7 @@ const INPUT_ID: &str = "combobox-input";
 pub fn Combobox(
     options: Vec<CivOption>,
     #[prop(into)] on_pick: Callback<CivOption>,
+    #[prop(into)] on_cancel: Callback<()>,
     show_unique_units: RwSignal<bool>,
     show_unique_techs: RwSignal<bool>,
 ) -> impl IntoView {
@@ -68,7 +69,7 @@ pub fn Combobox(
         let list = filtered.get();
         if list.is_empty() {
             if ev.key() == "Escape" {
-                open.set(false);
+                on_cancel.run(());
             }
             return;
         }
@@ -89,7 +90,7 @@ pub fn Combobox(
                     on_pick.run(*opt);
                 }
             }
-            "Escape" => open.set(false),
+            "Escape" => on_cancel.run(()),
             _ => {}
         }
     };
@@ -119,6 +120,13 @@ pub fn Combobox(
                 <span class="filters-count">
                     {move || format!("{} options", filtered.get().len())}
                 </span>
+                <button
+                    type="button"
+                    class="combobox-cancel"
+                    on:click=move |_| on_cancel.run(())
+                >
+                    "Cancel"
+                </button>
             </div>
             <input
                 id=INPUT_ID
