@@ -34,7 +34,7 @@ TREES_API = f"https://api.github.com/repos/{REPO}/contents/data/trees?ref={BRANC
 
 # node_type -> Group
 UNIT_NODE_TYPES = {"Unit", "UnitUpgrade", "UniqueUnit", "RegionalUnit"}
-TECH_NODE_TYPES = {"Research"}
+TECH_NODE_TYPES = {"Research", "UniqueTech", "RegionalTech"}
 
 OUT = Path(__file__).resolve().parent.parent / "src" / "data.rs"
 

@@ -2,7 +2,8 @@
 //!
 //! Spam (no wood) = food+gold units: every unique food+gold unit the civ
 //! holds, plus fixed rule slots (heavy camel, paladin, battle & siege
-//! elephants, hand cannons, elephant archers, eagles, steppe lancers).
+//! elephants, hand cannons, elephant archers, eagles, steppe lancers) and the
+//! Varangian Guard regional unit (a strong non-unique spam pick).
 //! Champion appears only for hand-curated civs where it is a real pick.
 //! Wood units (usually siege) = every unique unit that does cost wood, plus
 //! the siege/defense lines (ram, onager/scorpion lines, bombards) and Arbalest
@@ -217,6 +218,14 @@ pub const SPAM_RULES: &[Slot] = &[
         fallback: None,
         elite: Some(("Elite Steppe Lancer", uk(1372))),
         fu: LANCER_FU,
+    },
+    Slot {
+        label: "Varangian Guard",
+        section: Section::Spam,
+        keys: &[uk(2703)],
+        fallback: None,
+        elite: Some(("Elite Varangian Guard", uk(2704))),
+        fu: &[],
     },
 ];
 
@@ -540,8 +549,10 @@ pub fn summary_for(civ: &Civ) -> CivSummary {
 
 /// Notes keyed by civ name in the same order as CIVS. Only bonuses that stay
 /// active after everything is researched (permanent unit stats, production
-/// costs, farming/trade rates, building stats, wood gathering) are listed.
-/// Team bonuses are marked. One-time tech/age research perks are skipped.
+/// costs, farming/trade rates, building stats, wood gathering) are listed —
+/// in DM michi unique/imperial techs resolve for free at the start, so their
+/// permanent effects count too. Team bonuses are marked. One-time age-up
+/// perks are skipped.
 const NOTES: &[(&str, &[&str])] = &[
     (
         "Armenians",
@@ -586,6 +597,14 @@ const NOTES: &[(&str, &[&str])] = &[
     ),
     ("Chinese", &["team: farms provide +10% food"]),
     ("Cumans", &["mounted units move +10% in imperial"]),
+    (
+        "Danes",
+        &[
+            "Hamask researched: infantry deal more damage as they lose HP",
+            "Northmen's Fury: siege +40% vs buildings; mangonel-line +1 range",
+            "team: siege weapons +line of sight",
+        ],
+    ),
     (
         "Dravidians",
         &[
@@ -689,6 +708,14 @@ const NOTES: &[(&str, &[&str])] = &[
         "Saracens",
         &["camels have +25% HP", "market trading fee only 5% (fast gold)"]),
     (
+        "Saxons",
+        &[
+            "Shield Wall researched: infantry gain extra armor in large groups",
+            "Clerical Recruitment: monks gain +1 range and train 33% faster",
+            "towers & castles fire more arrows from the Castle Age",
+        ],
+    ),
+    (
         "Shu",
         &[
             "siege weapons move +15% faster in imperial",
@@ -722,6 +749,14 @@ const NOTES: &[(&str, &[&str])] = &[
     (
         "Turks",
         &["gunpowder units have +25% HP", "scout line gets +1 pierce armor"],
+    ),
+    (
+        "Varangians",
+        &[
+            "Vendel Legacy: knight line deals trample damage",
+            "Gothikon: Varangian Guards periodically throw axes",
+            "shepherding, fishing & hunting also generate gold",
+        ],
     ),
     ("Vietnamese", &["archery range units have +20% HP (arbalests)"]),
     ("Vikings", &["infantry have +20% HP (champions)"]),
@@ -1110,6 +1145,20 @@ mod tests {
         );
         let incas = summary_for(civ("Incas"));
         assert_no_row(&incas, "Champion");
+    }
+
+    #[test]
+    fn varangian_guard_lists_for_every_holder() {
+        for name in ["Byzantines", "Danes", "Saxons", "Varangians", "Vikings"] {
+            let s = summary_for(civ(name));
+            assert!(
+                s.rows.iter().any(|row| row.label == "Elite Varangian Guard"),
+                "{name} should list the Elite Varangian Guard"
+            );
+        }
+        let franks = summary_for(civ("Franks"));
+        assert_no_row(&franks, "Varangian Guard");
+        assert_no_row(&franks, "Elite Varangian Guard");
     }
 
     fn assert_no_row(summary: &CivSummary, label: &str) {

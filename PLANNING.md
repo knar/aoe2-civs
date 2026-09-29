@@ -111,14 +111,14 @@ Source: [`SiegeEngineers/aoe2techtree`](https://github.com/SiegeEngineers/aoe2te
 - **ID collision is real**: unit and tech dataset-ID spaces overlap (`Unit 4 = "Archer"`, `Tech 4 = "Cotton Armors"`; **33** integers appear in both a Unit and a Tech civ list). Within a group, IDs are unambiguous (verified 0 cases of one `(group, id)` mapping to multiple labels). => a `FilterKey { group, data_id }` disambiguates unit-vs-tech; the generator asserts within-group label uniqueness and fails loudly otherwise.
 - **One entity, several IDs** (discovered while baking): a unit can appear under multiple dataset IDs — different building slots (e.g. Huskarl in Castle `41` and Barracks `759`) or civ-specific variants (Sicilian Pikeman `1787` vs the generic `358`). Keying options by ID alone both duplicates the label in the picker *and* creates matching gaps (filtering `358` would miss Sicilians). So options are **merged by `(group, label)`** and carry the **set** of dataset IDs; a civ matches if it has *any* of them. 12 such merged options; each has one consistent `name_string_id`.
 - **Source of truth for labels**: the per-civ tree `name` can be stale after a tech rename (e.g. node says `Obsidian Arrows`, locale says `Hul'che Javelineers`), so the **locale string wins**. The few English artifacts are normalized: line-break hyphens (`Counter- weights` → `Counterweights`) and abbreviations (`E.` → `Elite`, `Heavy Demo Ship` → `Heavy Demolition Ship`).
-- **Catalog**: 238 unit + 192 tech = **430** labelable options; after merging, **418** distinct options, of which **49** are universal (present in every civ — Loom, Archer, Skirmisher, Spearman, Villager, Masonry, …) and excluded as non-differentiating, leaving **369** pickable options (209 units + 160 techs). Buildings (39, also labelable) are excluded from the picker.
-- **Civ membership** is compact: 53 civs, ~6,410 `(civ, FilterKey)` references (~121/civ).
+- **Catalog**: 248 unit + 199 tech = **447** labelable options; after merging, **435** distinct options, of which **48** are universal (present in every civ — Loom, Archer, Skirmisher, Spearman, Villager, Masonry, …) and excluded as non-differentiating, leaving **387** pickable options (219 units + 168 techs). Buildings (39, also labelable) are excluded from the picker.
+- **Civ membership** is compact: 56 civs, ~6,787 `(civ, FilterKey)` references (~121/civ).
 
 ### Ingestion decision: bake at build time
 
 A `scripts/generate_data.py` downloads the upstream files once and emits a committed `src/data.rs`:
 
-- `OPTIONS: &[CivOption { label, label_id, group, unique, keys: &[FilterKey] }]` — 369 entries, sorted (units then techs, alphabetical); `keys` holds every dataset ID for the merged entity; `group` is `Unit`/`Tech`; `unique` means the option matches exactly one civ (see below); `label_id` = `name_string_id` kept for future i18n.
+- `OPTIONS: &[CivOption { label, label_id, group, unique, keys: &[FilterKey] }]` — 387 entries, sorted (units then techs, alphabetical); `keys` holds every dataset ID for the merged entity; `group` is `Unit`/`Tech`; `unique` means the option matches exactly one civ (see below); `label_id` = `name_string_id` kept for future i18n.
 - `CIVS: &[Civ { name, keys: &[FilterKey] }]` — Unit+Tech membership only.
 
 No network at `cargo build`/`trunk build`; re-run the script to refresh data.
@@ -127,9 +127,9 @@ No network at `cargo build`/`trunk build`; re-run the script to refresh data.
 
 ### Picker filters: hiding civ-specific options
 
-Most of the catalog is noise for multi-civ filtering: **252 of 369 options (68%) match exactly one civ** — every `UniqueUnit` plus every civ-exclusive tech, and nothing else. The generator flags these as `unique` (defined as *matches exactly one civ*, so it stays correct if upstream flags drift).
+Most of the catalog is noise for multi-civ filtering: **262 of 387 options (68%) match exactly one civ** — every `UniqueUnit` plus every civ-exclusive tech, and nothing else. The generator flags these as `unique` (defined as *matches exactly one civ*, so it stays correct if upstream flags drift).
 
-The picker has two independent toggle chips, **"Unique units"** / **"Unique techs"**, both **off by default** (so the list opens at 117 options); turning one on reveals that category. Toggles live in `FilterBoard` (so they survive the combobox unmounting) and persist to `localStorage` under `aoe2.showUniqueUnits` / `aoe2.showUniqueTechs` via `src/storage.rs`. Hiding is picker-only — already-placed pills keep matching.
+The picker has two independent toggle chips, **"Unique units"** / **"Unique techs"**, both **off by default** (so the list opens at 125 options); turning one on reveals that category. Toggles live in `FilterBoard` (so they survive the combobox unmounting) and persist to `localStorage` under `aoe2.showUniqueUnits` / `aoe2.showUniqueTechs` via `src/storage.rs`. Hiding is picker-only — already-placed pills keep matching.
 
 ## Milestones (in order)
 
@@ -141,11 +141,11 @@ The picker has two independent toggle chips, **"Unique units"** / **"Unique tech
 
 ### Part 2 — real data + matching
 
-6. **Generator + baked data.** `scripts/generate_data.py` emits `src/data.rs` (`OPTIONS`, `CIVS`); strip markup; merge options by label; exclude buildings + universal options; assert within-group label uniqueness and per-option `name_string_id` consistency. A native test pins catalog counts (369 options / 53 civs) and rejects any unlabeled entry. ✅
+6. **Generator + baked data.** `scripts/generate_data.py` emits `src/data.rs` (`OPTIONS`, `CIVS`); strip markup; merge options by label; exclude buildings + universal options; assert within-group label uniqueness and per-option `name_string_id` consistency. A native test pins catalog counts (387 options / 56 civs) and rejects any unlabeled entry. ✅
 7. **Model.** `Group`, `FilterKey`, `Pill.keys`; `matching_civs(rows, CIVS)` (AND over rows, OR within; any key per pill) + fixture unit tests (empty filter => all civs; single row OR; multi-row AND; multi-key merge; no match; unit-vs-tech id collision). ✅
 8. **UI.** Combobox emits the picked `Option`; board dedupes by key set and builds the pill from it; results panel shows match count + civ names, reactive via `Memo`. CSS for the results area. ✅
 9. **Pass.** `cargo test` (22 passing), wasm + `trunk build`, `cargo clippy` (clean), mobile check (picker + results), update PLANNING wrap-up. ✅
-10. **Hide civ-specific options.** Bake `unique` (= 1-civ) onto options; two `localStorage`-persisted toggles in the picker (default off); tests pin 252 unique / 143 unit / 109 tech and assert `unique <=> matches one civ`. ✅
+10. **Hide civ-specific options.** Bake `unique` (= 1-civ) onto options; two `localStorage`-persisted toggles in the picker (default off); tests pin 262 unique / 147 unit / 115 tech and assert `unique <=> matches one civ`. ✅
 
 ### Part 3 — DM michi civ overview
 
@@ -154,7 +154,7 @@ The picker has two independent toggle chips, **"Unique units"** / **"Unique tech
     - **"Bonuses that matter"** — one to two hand-curated notes per civ, filtered to effects that stay active *after everything is already researched* (post-imp DM): permanent power-unit stats, production-cost/training perks for those units, farming/trade rates, building stats, wood gathering. One-time/pre-age research perks (free/faster techs, earlier ages, eco) are deliberately omitted. Team bonuses flagged. Source: field-guide (`amateurakhbar/aoe2-field-guide` `data/aoe2_data.json`) DE game strings, spot-checked (Burgundians/Turks gunpowder, Mongols Drill).
     - Footer link → `https://aoe2techtree.net/#<CivName>`.
     - Persisted UI decisions: no concise/full toggle (always concise); single "DM michi" profile (slots/notes table is the extension point for more modes).
-12. **Tests** (`overview.rs`): every slot/FU/fallback key must exist in the `OPTIONS` catalog; notes exist for all 53 civs; pinned civ expectations match known data facts (Turks BBT ✓ no onager but heavy scorpion; Koreans BBT ✓ no onager/heavy scorpion + champion lacking Blast Furnace; Britons arbalest missing Thumb Ring; Franks paladin missing Bloodlines; Goths champion missing Plate Mail + Arson, Paladin → Cavalier only; Celts Siege Onager ✓ no BBT; Chinese BBT ✓ + heavy scorpion, no onager). ✅ (36 tests total, clippy clean)
+12. **Tests** (`overview.rs`): every slot/FU/fallback key must exist in the `OPTIONS` catalog; notes exist for all 56 civs; pinned civ expectations match known data facts (Turks BBT ✓ no onager but heavy scorpion; Koreans BBT ✓ no onager/heavy scorpion + champion lacking Blast Furnace; Britons arbalest missing Thumb Ring; Franks paladin missing Bloodlines; Goths champion missing Plate Mail + Arson, Paladin → Cavalier only; Celts Siege Onager ✓ no BBT; Chinese BBT ✓ + heavy scorpion, no onager). ✅ (36 tests total, clippy clean)
 13. **Spam & tools redesign.** Replaced the fixed 12-slot grid with a rule-driven, per-civ "good options" sheet — no more ✗/noise rows:
     - **Spam (food & gold)**: every *unique* unit the civ holds whose training cost has no wood (baked at generation time as `food_gold`, from upstream `data.json` `data.Unit[...].Cost`), shown as `Elite X` when the elite line is held, plus always-shown rule slots — Heavy Camel Rider, Paladin, Battle Elephant, Hand Cannoneer, Elite Elephant Archer, Eagle Warrior, Steppe Lancer — each only when present. A coverage fallback guarantees ≥1 spam row (Cavalier → Champion → Arbalest; e.g. Chinese). Champion/Arbalest otherwise appear **only** for hand-curated `SPECIAL_INF`/`SPECIAL_RANGE` civs, kept in sync with NOTES by a test.
     - **Siege tools**: Siege Ram / Siege Elephant / Siege Onager / Heavy Scorpion (with their cheaper fallbacks, e.g. ▽ Capped Ram, ▽ Armored Elephant) + Bombard Cannon + Bombard Tower, only when present; Siege Engineers researched shows as a footnote when the civ actually has a siege line.

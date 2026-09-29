@@ -9,16 +9,16 @@ use std::collections::HashSet;
 
 #[test]
 fn catalog_counts_are_pinned() {
-    assert_eq!(CIVS.len(), 53, "civ count changed");
-    assert_eq!(OPTIONS.len(), 369, "option count changed");
+    assert_eq!(CIVS.len(), 56, "civ count changed");
+    assert_eq!(OPTIONS.len(), 387, "option count changed");
 
     let units = OPTIONS
         .iter()
         .filter(|o| o.keys[0].group == Group::Unit)
         .count();
     let techs = OPTIONS.len() - units;
-    assert_eq!(units, 209, "unit option count changed");
-    assert_eq!(techs, 160, "tech option count changed");
+    assert_eq!(units, 219, "unit option count changed");
+    assert_eq!(techs, 168, "tech option count changed");
 
     let unique_units = OPTIONS
         .iter()
@@ -28,8 +28,8 @@ fn catalog_counts_are_pinned() {
         .iter()
         .filter(|o| o.unique && o.group == Group::Tech)
         .count();
-    assert_eq!(unique_units, 143, "unique unit option count changed");
-    assert_eq!(unique_techs, 109, "unique tech option count changed");
+    assert_eq!(unique_units, 147, "unique unit option count changed");
+    assert_eq!(unique_techs, 115, "unique tech option count changed");
 }
 
 #[test]
