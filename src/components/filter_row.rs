@@ -38,6 +38,7 @@ pub fn FilterRow(
                 key=|pill| pill.id
                 children=move |pill| {
                     view! {
+                        <span aria-hidden="true" class="pill-join">"or"</span>
                         <PillChip
                             name=pill.name.clone()
                             pill_id=pill.id

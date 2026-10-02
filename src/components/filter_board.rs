@@ -107,7 +107,9 @@ pub fn FilterBoard(rows: RwSignal<Vec<Row>>) -> impl IntoView {
             <header class="board-annotation">
                 <div class="board-annotation-text">
                     <h1>"AoE2 civ filter"</h1>
-                    <p>"Every row is required (AND). Pick a unit or tech per row."</p>
+                    <p>
+                        "Add a unit or tech. Drag pills to combine them into one filter, or out to split them."
+                    </p>
                 </div>
                 <button
                     class="theme-toggle"
@@ -141,6 +143,7 @@ pub fn FilterBoard(rows: RwSignal<Vec<Row>>) -> impl IntoView {
                     key=|row| row.id
                     children=move |row| {
                         view! {
+                            <div class="row-join" aria-hidden="true">"AND"</div>
                             <FilterRow
                                 rows=rows
                                 row_id=row.id

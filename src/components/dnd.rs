@@ -22,16 +22,22 @@ pub fn apply(
         .chosen_class("sortable-chosen")
         .drag_class("sortable-drag")
         .on_end(move |evt: Event| {
-            let (Some(old_index), Some(new_index)) = (evt.old_index, evt.new_index) else {
+            // Draggable-only indices, not raw child indices: the row also contains
+            // static "or" joiner spans, which SortableJS would otherwise count.
+            let (Some(old_index), Some(new_index)) =
+                (evt.old_draggable_index, evt.new_draggable_index)
+            else {
                 return;
             };
-            let (Some(from_row), Some(to_row)) = (attr_id(&evt.from), attr_id(&evt.to))
-            else {
+            let (Some(from_row), Some(to_row)) = (attr_id(&evt.from), attr_id(&evt.to)) else {
                 return;
             };
 
             if dropped_outside(&evt) {
-                let extract = ExtractPill { from_row, old_index };
+                let extract = ExtractPill {
+                    from_row,
+                    old_index,
+                };
                 let moved = evt.item.clone();
                 request_animation_frame(move || {
                     on_extract.run(extract);

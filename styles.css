@@ -116,6 +116,24 @@ body {
   gap: 8px;
 }
 
+.row-join {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: -4px 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  user-select: none;
+  pointer-events: none;
+}
+
+.pill-join:first-child,
+.row-join:first-child {
+  display: none;
+}
+
 .filter-row {
   display: flex;
   flex-wrap: wrap;
@@ -126,6 +144,14 @@ body {
   border-radius: 8px;
   padding: 10px;
   min-height: 40px;
+}
+
+.pill-join {
+  font-size: 0.78rem;
+  font-style: italic;
+  color: var(--text-muted);
+  user-select: none;
+  pointer-events: none;
 }
 
 .pill {
