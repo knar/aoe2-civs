@@ -17,6 +17,7 @@ Persistence stays deferred; the civ-matching engine and real-data ingestion are 
 |---|---|---|
 | Framework | **Leptos 0.8** (CSR `< `csr` `>` feature) | Fine-grained reactivity, declarative `view!`, full Rust |
 | Build/dev server | **Trunk** | `trunk serve`; handles wasm + bundling + live reload |
+| Hosting | **GitHub Pages** (Actions) | Static CSR bundle; `actions/deploy-pages`, no server needed |
 | Styling | **Plain CSS** (`styles.css`, `class:` attr) | Zero tooling; keep it simple while learning |
 | Combobox | **Custom (Leptos)** — input + filtered list + keyboard nav | `leptix-select` was tried and dropped: no search, broken scrollable viewport in the dropdown |
 | Drag & drop | **`sortable-js`** (SortableJS bindings) | Mature, battle-tested, native touch + multi-list "group" support — no handrolling the matrix |
@@ -29,8 +30,12 @@ Notes on the two "thin spots":
 
 ```
 index.html          # Trunk entry (mounts <main>, loads styles)
-Trunk.toml
+Trunk.toml          # build config; public_url = "./" so Pages subpaths work
 Cargo.toml
+.github/workflows/
+  pages.yml         # CI: test, trunk build --release, deploy to GitHub Pages
+assets/
+  favicon.svg       # hand-drawn onager; favicon.ico/-16/-32/apple-touch-icon are generated
 scripts/
   generate_data.py  # one-off/dev: bake upstream data into src/data.rs (committed output)
 src/
@@ -49,6 +54,29 @@ src/
     pill.rs         # draggable pill chip + removal ✕
   styles.css
 ```
+
+## Deployment
+
+Push to `main` → `.github/workflows/pages.yml` runs `cargo test`, then
+`trunk build --release`, then uploads `dist` via `actions/upload-pages-artifact`
+and `actions/deploy-pages`. The one-time setup is Settings → Pages → Source:
+**GitHub Actions**.
+
+- **`public_url = "./"` in `Trunk.toml` is load-bearing.** Trunk's default `/`
+  emits root-absolute asset URLs, which 404 under `knar.github.io/aoe2-civs/`.
+  A 404 on the `.wasm` makes Pages serve its HTML 404 page, which surfaces as
+  `WebAssembly: Response has unsupported MIME type 'text/html'` — a path bug
+  that looks like a MIME bug. Relative paths work from a repo subpath, a user
+  site root, or a custom domain with no rebuild.
+- No `404.html` and no `.nojekyll` needed: the app has no router (single page,
+  `mount_to_body`), and `deploy-pages` bypasses Jekyll entirely.
+- Pages serves `.wasm` as `application/wasm`; nothing to configure.
+- Release bundle: ~552 KB wasm (~0.2 MB gzipped), 39 KB js, 9 KB css.
+- Icons hotlink `https://aoe2techtree.net/img/…` at runtime — a third-party
+  dependency to keep an eye on.
+- `favicon.png` was referenced but never existed. Replaced with
+  `assets/favicon.svg` (onager) plus generated `.ico`/PNG sizes, copied by
+  `<link data-trunk rel="copy-file">`.
 
 ## State model
 

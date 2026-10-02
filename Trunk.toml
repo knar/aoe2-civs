@@ -1,0 +1,5 @@
+[build]
+# Relative asset paths, so the same build works from a repo subpath
+# (knar.github.io/aoe2-civs/), a user site root, or a custom domain
+# without a rebuild. Trunk's default "/" breaks anything off the root.
+public_url = "./"
